@@ -1,0 +1,14 @@
+<html>
+  <head>
+    <title>Url Shortener</title>
+  </head>
+  <body>
+    <form method='post' action='/'>
+      Enter url:<input type='text' name='url' /><br />
+      <input type='submit' value='Submit' />
+    </form>
+    {% if short_url %}
+    <p>Here is your shorted url: {{short_url}}</p>
+    {% endif %}
+  </body>
+</html>

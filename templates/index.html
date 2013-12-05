@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Elide</title>
+  </head>
+  <body>
+    {% for message in get_flashed_messages() %}
+    <p>{{message}}</p>
+    {% endfor %}
+    <form method='post' action='/'>
+      Enter url:<input type='text' name='url' /><br />
+      <input type='submit' value='Submit' />
+    </form>
+    {% if short_url %}
+    <p>Here is your shorted url: {{short_url}} ({{clicks}} clicks)</p>
+    {% endif %}
+  </body>
+</html>
