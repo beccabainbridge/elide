@@ -3,18 +3,27 @@ import random
 import string
 import sqlite3
 import requests
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flaskext.bcrypt import Bcrypt
 from contextlib import closing
 
 DEBUG = os.environ["ELIDE_DEBUG"]
 SECRET_KEY = os.environ["ELIDE_SECRET_KEY"]
 DATABASE = os.environ["ELIDE_DATABASE"]
+SCHEMA = os.environ["ELIDE_SCHEMA"]
 
 app = Flask(__name__)
+bcrypt = Bcrypt(app)
 app.config.from_object(__name__)
 
 def connect_db():
     return sqlite3.connect(DATABASE)
+
+def init_db():
+    with closing(connect_db()) as db:
+        with open(SCHEMA, mode='r') as f:
+            db.cursor().executescript(f.read())
+            db.commit()
 
 @app.route('/', methods=['GET', 'POST'])
 def main():
@@ -36,8 +45,8 @@ def main():
 def display():
     base_url = url_for("main", _external=True)
     with closing(connect_db()) as db:
-        query = db.execute("SELECT url, short_url FROM urls")
-        entries = [(url, base_url + short_url) for url, short_url  in query.fetchall()]
+        query = db.execute("SELECT url, short_url, clicks FROM urls")
+        entries = [(url, base_url + short_url, clicks) for url, short_url, clicks  in query.fetchall()]
     return render_template('display.html', urls=entries)
 
 @app.route('/<short_url>')
@@ -50,6 +59,50 @@ def go_to_short_url(short_url):
         return redirect(url)
     else:
         return render_template('invalid_url.html', url=short_url)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        username = request.form['username']
+        if username in get_usernames():
+            pw_hash = get_password(username)
+            if bcrypt.check_password_hash(pw_hash, request.form['password']):
+                session['username'] = username
+                session['logged_in'] = True
+                flash('You were logged in')
+                return redirect('/')
+            else:
+                error = 'Incorrect password'
+        else:
+            error = 'Invalid username'
+
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    flash('You were logged out')
+    return redirect('/')
+
+@app.route('/create_account', methods=['GET', 'POST'])
+def create_user():
+    error = None
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        password_confirm = request.form['password_confirm']
+        if password != password_confirm:
+            error = "Passwords don't match"
+        elif username in get_usernames():
+            error = "Username already in use. Please choose another."
+        else:
+            pw_hash = bcrypt.generate_password_hash(password)
+            add_user(username, pw_hash)
+            flash('Account created')
+            return redirect('login')
+
+    return render_template('create_account.html', error=error)
 
 def shorten(url):
     """shorten given url and return value"""
@@ -93,22 +146,15 @@ def in_db(url=None, short_url=None):
 def get_url(short_url):
     """given short_url return url"""
     with closing(connect_db()) as db:
-        try:
-            query = db.execute("SELECT url FROM urls WHERE short_url=?", (short_url,))
-            return query.fetchone()[0]
-        except sqlite3.OperationalError:
-            return None
+        query = db.execute("SELECT url FROM urls WHERE short_url=?", (short_url,))
+        return query.fetchone()[0]
 
 def add_to_db(url, short_url):
     """add new entry for given url and short_url to database"""
     with closing(connect_db()) as db:
-        try:
-            if in_db(url):
-                return
-            db.execute("INSERT INTO urls (url, short_url, clicks) VALUES (?, ?, ?)", (url, short_url, 0))
-        except sqlite3.OperationalError:
-            db.execute("CREATE TABLE urls(url, short_url, clicks)")
-            db.execute("INSERT INTO urls (url, short_url, clicks) VALUES (?, ?, ?)", (url, short_url, 0))
+        if in_db(url):
+            return
+        db.execute("INSERT INTO urls (url, short_url, clicks) VALUES (?, ?, ?)", (url, short_url, 0))
         db.commit()
 
 def valid_url(url):
@@ -121,6 +167,22 @@ def valid_url(url):
     else:
         return r >= 200 and r < 400
 
+def add_user(username, pw_hash):
+    with closing(connect_db()) as db:
+        db.execute("INSERT INTO users (username, pw_hash) VALUES (?,?)", (username, pw_hash))
+        db.commit()
+
+def get_usernames():
+    with closing(connect_db()) as db:
+        entries = db.execute("SELECT username from users")
+        return [entry[0] for entry in entries.fetchall()]
+
+def get_password(username):
+    with closing(connect_db()) as db:
+        entries = db.execute("SELECT pw_hash FROM users WHERE username=?", \
+                              (username,))
+        return entries.fetchone()[0]
 
 if __name__ == '__main__':
+    init_db()
     app.run()

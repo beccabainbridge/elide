@@ -1,8 +1,8 @@
 {% extends "layout.html" %}
 {% block body %}
     <ul>
-      {% for url, short_url in urls%}
-      <li>{{url}} -- {{short_url}}</li>
+      {% for url, short_url, clicks in urls%}
+      <li>{{url}} -- {{short_url}} ({{clicks}} clicks)</li>
       {% endfor %}
     </ul>
 {% endblock %}

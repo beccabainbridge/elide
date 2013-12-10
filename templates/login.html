@@ -1,0 +1,11 @@
+{% extends "layout.html" %}
+{% block body %}
+  <h2>Login</h2>
+  {% if error %}<p class=error>Error: {{error}}</p>{% endif %}
+  <form method='post' action='login'>
+    Username: <input type='text' name='username'><br />
+    Password: <input type='password' name='password'><br />
+    <input type='submit' value='Submit' />
+  </form>
+  <a href="{{url_for('create_user')}}">Don't have an account? Sign up.</a>
+{% endblock %}
