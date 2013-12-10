@@ -1,6 +1,8 @@
 import os
+import random
+import string
 import sqlite3
-import random, string
+import requests
 from flask import Flask, render_template, request, redirect, url_for, flash
 from contextlib import closing
 
@@ -18,7 +20,7 @@ def connect_db():
 def main():
     if request.method == 'POST':
         url = request.form['url']
-        if not url:
+        if not valid_url(url):
             flash("invalid url")
             return redirect('/')
         short_url = in_db(url)
@@ -108,6 +110,17 @@ def add_to_db(url, short_url):
             db.execute("CREATE TABLE urls(url, short_url, clicks)")
             db.execute("INSERT INTO urls (url, short_url, clicks) VALUES (?, ?, ?)", (url, short_url, 0))
         db.commit()
+
+def valid_url(url):
+    if not (url.startswith('http://') or url.startswith('https://')):
+        url = 'http://' + url
+    try:
+        r = requests.head(url).status_code
+    except:
+        return False
+    else:
+        return r >= 200 and r < 400
+
 
 if __name__ == '__main__':
     app.run()
