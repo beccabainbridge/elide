@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Elide</title>
+    <link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css')}}">
+  </head>
+  <body>
+    <nav>
+      <a id='logo' href='/' >Elide</a>
+      {% if not session.logged_in %}
+      <a id='login' href="{{url_for('login')}}">log in</a>
+      {% else %}
+        <a id='display' href="{{url_for('display')}}">Your Links</a>
+        <br>
+        <a id='login' href="{{url_for('logout')}}">log out</a>
+      {% endif %}
+    </nav>
+    {% for message in get_flashed_messages() %}
+    <p>{{message}}</p>
+    {% endfor %}
+    {% block body %}{% endblock %}
+  </body>
+</html>
