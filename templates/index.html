@@ -4,7 +4,8 @@
       Enter url:<input type='text' name='url' /><br />
       <input type='submit' value='Submit' />
     </form>
-    {% if short_url %}
-    <p>Here is your shorted url: {{short_url}} ({{clicks}} clicks)</p>
+    {% if full_url %}
+    <span id="short_url" style="display:none;">{{short_url}}</span>
+    <p>Here is your shorted url: <a href={{full_url}}>{{full_url}}</a> (<span id='clicks'>{{clicks}}</span> clicks)</p>
     {% endif %}
 {% endblock %}

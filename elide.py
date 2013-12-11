@@ -2,6 +2,7 @@ import os
 import random
 import string
 import sqlite3
+import json
 import requests
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flaskext.bcrypt import Bcrypt
@@ -37,8 +38,8 @@ def main():
             short_url = shorten(url)
             add_to_db(url, short_url)
         base_url = url_for("main", _external=True)
-        clicks = get_clicks(url)
-        return render_template('index.html', short_url=base_url+short_url, clicks=clicks)
+        clicks = get_clicks(short_url)
+        return render_template('index.html', full_url=base_url+short_url, short_url=short_url, clicks=clicks)
     return render_template('index.html', short_url=None, clicks=None)
 
 @app.route('/display')
@@ -59,6 +60,11 @@ def go_to_short_url(short_url):
         return redirect(url)
     else:
         return render_template('invalid_url.html', url=short_url)
+
+@app.route('/clicks')
+def clicks():
+    click_data = {"numClicks": get_clicks(request.args.get("short_url"))}
+    return json.dumps(click_data)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -119,7 +125,7 @@ def update_clicks(url):
 def get_clicks(url):
     """return number of clicks for given url"""
     with closing(connect_db()) as db:
-        query = db.execute("SELECT clicks FROM urls WHERE url=?", (url,))
+        query = db.execute("SELECT clicks FROM urls WHERE short_url=?", (url,))
         return query.fetchone()[0]
 
 def in_db(url=None, short_url=None):
