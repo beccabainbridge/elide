@@ -33,20 +33,32 @@ def main():
         if not valid_url(url):
             flash("invalid url")
             return redirect('/')
-        short_url = in_db(url)
+        user = get_user(session)
+        short_url = in_db(user, url=url)
         if short_url is None:
-            short_url = shorten(url)
-            add_to_db(url, short_url)
+            short_url = shorten(url, user)
+            add_to_db(url, short_url, user)
         base_url = url_for("main", _external=True)
         clicks = get_clicks(short_url)
         return render_template('index.html', full_url=base_url+short_url, short_url=short_url, clicks=clicks)
     return render_template('index.html', short_url=None, clicks=None)
 
+def get_user(session):
+    if 'logged_in' in session:
+        user = session['username']
+    else:
+        user = 'public'
+    return user
+
 @app.route('/display')
 def display():
+    return redirect('/display/' + get_user(session))
+
+@app.route('/display/<user>')
+def display_user(user):
     base_url = url_for("main", _external=True)
     with closing(connect_db()) as db:
-        query = db.execute("SELECT url, short_url, clicks FROM urls")
+        query = db.execute("SELECT url, short_url, clicks FROM urls WHERE user=?", (user,))
         entries = [(url, base_url + short_url, clicks) for url, short_url, clicks  in query.fetchall()]
     return render_template('display.html', urls=entries)
 
@@ -110,11 +122,11 @@ def create_user():
 
     return render_template('create_account.html', error=error)
 
-def shorten(url):
-    """shorten given url and return value"""
+def shorten(url, user):
+    """shorten given url and return value if not already used"""
     s = string.letters+string.digits
     short_url = "".join(random.choice(s) for i in range(5))
-    return short_url if not in_db(short_url) else shorten(url)
+    return short_url if not in_db(user, short_url=short_url) else shorten(url, user)
 
 def update_clicks(url):
     """increment clicks each time url is accessed"""
@@ -122,25 +134,26 @@ def update_clicks(url):
         db.execute('UPDATE urls SET clicks=clicks+1 where url=?', (url,))
         db.commit()
 
-def get_clicks(url):
-    """return number of clicks for given url"""
+def get_clicks(short_url):
+    """return number of clicks for given short url"""
     with closing(connect_db()) as db:
-        query = db.execute("SELECT clicks FROM urls WHERE short_url=?", (url,))
-        return query.fetchone()[0]
+        query = db.execute("SELECT clicks FROM urls WHERE short_url=?", (short_url,))
+        clicks = query.fetchone()
+        return clicks[0] if clicks else None
 
-def in_db(url=None, short_url=None):
+def in_db(user, url=None, short_url=None):
     """given url return short_url if url in the database, given short_url return url if in database or return None if not in database """
     if url is not None:
-        q = "SELECT short_url FROM urls WHERE url=?"
+        q = "SELECT short_url FROM urls WHERE url=? and user=?"
         i = url
     elif short_url is not None:
-        q = "SELECT url FROM urls WHERE short_url=?"
+        q = "SELECT url FROM urls WHERE short_url=? and user=?"
         i = short_url
     else:
         return
     with closing(connect_db()) as db:
         try:
-            query = db.execute(q, (i,))
+            query = db.execute(q, (i, user))
             entry = query.fetchone()
             if entry:
                 return entry[0]
@@ -153,14 +166,15 @@ def get_url(short_url):
     """given short_url return url"""
     with closing(connect_db()) as db:
         query = db.execute("SELECT url FROM urls WHERE short_url=?", (short_url,))
-        return query.fetchone()[0]
+        data = query.fetchone()
+        return data[0] if data else None
 
-def add_to_db(url, short_url):
-    """add new entry for given url and short_url to database"""
+def add_to_db(url, short_url, user):
+    """add new entry for given url, short_url, and user to database"""
     with closing(connect_db()) as db:
-        if in_db(url):
+        if in_db(user, url=url):
             return
-        db.execute("INSERT INTO urls (url, short_url, clicks) VALUES (?, ?, ?)", (url, short_url, 0))
+        db.execute("INSERT INTO urls (url, short_url, clicks, user) VALUES (?, ?, ?, ?)", (url, short_url, 0, user))
         db.commit()
 
 def valid_url(url):
