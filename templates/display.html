@@ -1,8 +1,9 @@
 {% extends "layout.html" %}
 {% block body %}
     <ul>
-      {% for url, short_url, clicks in urls%}
-      <li>{{url}} -- {{short_url}} ({{clicks}} clicks)</li>
+      {% for url, full_url, short_url, clicks in urls%}
+      <span class="short_url" style="display:none;">{{short_url}}</span>
+      <li>{{url}} -- <a href={{full_url}}>{{full_url}}</a> (<span id={{"clicks-"+short_url}}>{{clicks}}</span> clicks)</li>
       {% endfor %}
     </ul>
 {% endblock %}

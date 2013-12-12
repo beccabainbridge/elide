@@ -67,7 +67,7 @@ def display_user(user):
     base_url = url_for("main", _external=True)
     with closing(connect_db()) as db:
         query = db.execute("SELECT url, short_url, clicks FROM urls WHERE user=?", (user,))
-        entries = [(url, base_url + short_url, clicks) for url, short_url, clicks  in query.fetchall()]
+        entries = [(url, base_url + short_url, short_url, clicks) for url, short_url, clicks  in query.fetchall()]
     return render_template('display.html', urls=entries)
 
 @app.route('/<short_url>')
@@ -84,7 +84,7 @@ def go_to_short_url(short_url):
 @app.route('/clicks')
 def clicks():
     short_url = request.args.get("short_url")
-    click_data = {"numClicks": get_clicks(short_url), "clickData": get_click_data(short_url)}
+    click_data = {"shortUrl": short_url, "numClicks": get_clicks(short_url), "clickData": get_click_data(short_url)}
     return json.dumps(click_data)
 
 @app.route('/login', methods=['GET', 'POST'])
