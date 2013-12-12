@@ -1,10 +1,12 @@
 import os
 import random
 import string
+import time
+import datetime
 import sqlite3
 import json
 import requests
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, g
 from flaskext.bcrypt import Bcrypt
 from contextlib import closing
 
@@ -25,6 +27,12 @@ def init_db():
         with open(SCHEMA, mode='r') as f:
             db.cursor().executescript(f.read())
             db.commit()
+
+@app.before_request
+def before_request():
+    g.prev_url = request.referrer
+    g.date = str(datetime.datetime.fromtimestamp(time.time()))
+    g.browser = request.user_agent.browser
 
 @app.route('/', methods=['GET', 'POST'])
 def main():
@@ -65,8 +73,8 @@ def display_user(user):
 @app.route('/<short_url>')
 def go_to_short_url(short_url):
     url = get_url(short_url)
-    update_clicks(url)
     if url:
+        update_clicks(short_url, g.prev_url, g.date, g.browser)
         if not (url.startswith('http://') or url.startswith('https://')):
             url = 'http://' + url
         return redirect(url)
@@ -75,7 +83,8 @@ def go_to_short_url(short_url):
 
 @app.route('/clicks')
 def clicks():
-    click_data = {"numClicks": get_clicks(request.args.get("short_url"))}
+    short_url = request.args.get("short_url")
+    click_data = {"numClicks": get_clicks(short_url), "clickData": get_click_data(short_url)}
     return json.dumps(click_data)
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -128,10 +137,13 @@ def shorten(url, user):
     short_url = "".join(random.choice(s) for i in range(5))
     return short_url if not in_db(user, short_url=short_url) else shorten(url, user)
 
-def update_clicks(url):
+def update_clicks(short_url, prev_url, date, browser):
     """increment clicks each time url is accessed"""
     with closing(connect_db()) as db:
-        db.execute('UPDATE urls SET clicks=clicks+1 where url=?', (url,))
+        db.execute('UPDATE urls SET clicks=clicks+1 where short_url=?', (short_url,))
+        urlid = db.execute("SELECT id from urls where short_url=?", (short_url,)).fetchone()[0]
+        db.execute('INSERT INTO clicks (urlid, previousurl, date, browser) VALUES (?,?,?,?)', \
+                   (urlid, prev_url, date, browser))
         db.commit()
 
 def get_clicks(short_url):
@@ -140,6 +152,14 @@ def get_clicks(short_url):
         query = db.execute("SELECT clicks FROM urls WHERE short_url=?", (short_url,))
         clicks = query.fetchone()
         return clicks[0] if clicks else None
+
+def get_click_data(short_url):
+    """return previous url, date, and browser data for clicks on a given short url"""
+    with closing(connect_db()) as db:
+        id = db.execute("SELECT id FROM urls WHERE short_url=?", (short_url,)).fetchone()[0]
+        query = db.execute("SELECT previousurl, date, browser FROM clicks WHERE urlid=?", (id,))
+        click_data = {i: dict(prev_url=u, date=d, browser=b) for i, (u, d, b) in enumerate(query.fetchall())}
+        return click_data
 
 def in_db(user, url=None, short_url=None):
     """given url return short_url if url in the database, given short_url return url if in database or return None if not in database """
