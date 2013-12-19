@@ -13,7 +13,7 @@
         setInterval(function() {
             var shortUrls = document.getElementsByClassName("short_url");
             for (var i = 0; i < shortUrls.length; i++) {
-            exports.updateClicks(shortUrls[i].innerHTML);
+            exports.updateClicks(shortUrls[i].id);
             }
         }, 1000);
     };
