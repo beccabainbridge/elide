@@ -52,6 +52,8 @@ def display():
 
 @app.route('/display/<user>')
 def display_user(user):
+    if user != get_user(session):
+        return render_template('access_denied.html')
     base_url = url_for("main", _external=True)
     urls = db.get_user_urls(user, base_url)
     return render_template('display.html', urls=urls)
